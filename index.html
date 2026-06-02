@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StockTime — 1-Year Investment Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- API Key Setup Screen -->
+  <div id="setup-screen" class="setup-screen hidden">
+    <div class="setup-card">
+      <div class="setup-icon">📈</div>
+      <h1>StockTime</h1>
+      <p class="setup-tagline">Enter any US stock and see exactly how much<br>your money would be worth after 1 year.</p>
+      <div class="setup-divider"></div>
+      <p class="setup-desc">This app uses <strong>Alpha Vantage</strong> for accurate stock data.<br>
+         Getting a free API key takes under 30 seconds.</p>
+      <ol class="setup-steps">
+        <li>Visit <a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noopener">alphavantage.co ↗</a></li>
+        <li>Enter your email → click <em>"Get Free API Key"</em></li>
+        <li>Copy &amp; paste your key below</li>
+      </ol>
+      <div class="setup-form">
+        <input id="api-key-input" type="text"
+          placeholder="Paste API key (e.g. DEMO123ABCXYZ)" />
+        <button id="save-api-key-btn" class="btn-primary">
+          Start Calculating
+        </button>
+      </div>
+      <p class="setup-note">Key is stored only in your browser. We never transmit it.</p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app" class="hidden">
+    <header>
+      <div class="header-inner">
+        <a class="logo" href="#">
+          <span class="logo-icon">📈</span>
+          <span class="logo-text">StockTime</span>
+        </a>
+        <p class="tagline">What would $X be worth today if you invested 1 year ago?</p>
+        <button id="change-key-btn" class="link-btn">⚙ API Key</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="calculator-card">
+          <div class="form-row">
+            <!-- Search -->
+            <div class="form-group grow">
+              <label>Stock / ETF</label>
+              <div class="search-wrapper">
+                <input id="stock-search" type="text"
+                  placeholder="Search: Apple, TSLA, SPY…"
+                  autocomplete="off" spellcheck="false" />
+                <div id="search-dropdown" class="dropdown hidden"></div>
+                <div id="selected-pill" class="selected-pill hidden">
+                  <span id="pill-ticker" class="ticker-badge"></span>
+                  <span id="pill-name"></span>
+                  <button id="clear-stock">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Amount -->
+            <div class="form-group amount-group">
+              <label>Amount</label>
+              <div class="prefix-wrap">
+                <span class="prefix">$</span>
+                <input id="amount" type="number" min="1" value="1000" />
+              </div>
+            </div>
+
+            <!-- Go button -->
+            <div class="form-group btn-group">
+              <label>&nbsp;</label>
+              <button id="calculate-btn" class="btn-primary" disabled>
+                Calculate
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="loading hidden">
+          <div class="spinner"></div>
+          <span>Fetching 1-year data…</span>
+        </div>
+
+        <!-- Error -->
+        <div id="error-card" class="error-card hidden">
+          <span class="error-icon">⚠</span>
+          <span id="error-msg"></span>
+        </div>
+
+        <!-- Results -->
+        <div id="results-card" class="results-card hidden">
+          <div class="res-header">
+            <div class="res-id">
+              <span id="res-ticker" class="ticker-badge lg"></span>
+              <div>
+                <div id="res-name" class="res-name"></div>
+                <div id="res-exchange" class="res-exchange"></div>
+              </div>
+            </div>
+            <div id="res-badge" class="return-badge"></div>
+          </div>
+
+          <div class="res-numbers">
+            <div class="res-num-item">
+              <div class="res-num-label">You invested</div>
+              <div id="res-invested" class="res-num-value"></div>
+              <div id="res-date-start" class="res-num-sub"></div>
+            </div>
+            <div class="res-arrow">→</div>
+            <div class="res-num-item">
+              <div class="res-num-label">Worth today</div>
+              <div id="res-value" class="res-num-value accent"></div>
+              <div id="res-date-end" class="res-num-sub"></div>
+            </div>
+          </div>
+
+          <div class="res-details">
+            <div class="detail-cell">
+              <span class="dl">Price 1 year ago</span>
+              <span id="d-price-start" class="dv"></span>
+            </div>
+            <div class="detail-cell">
+              <span class="dl">Price today</span>
+              <span id="d-price-end" class="dv"></span>
+            </div>
+            <div class="detail-cell">
+              <span class="dl">Shares you'd own</span>
+              <span id="d-shares" class="dv"></span>
+            </div>
+            <div class="detail-cell">
+              <span class="dl">Total gain / loss</span>
+              <span id="d-gain" class="dv"></span>
+            </div>
+          </div>
+
+          <div class="chart-wrap">
+            <canvas id="price-chart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Popular Stocks -->
+      <section class="popular">
+        <h2>Popular US Stocks &amp; ETFs</h2>
+        <p class="sub">Click any card to load it instantly</p>
+        <div id="stocks-grid" class="stocks-grid"></div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Data by Alpha Vantage · For educational purposes only · Not financial advice</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
