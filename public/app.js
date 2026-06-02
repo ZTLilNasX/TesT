@@ -226,7 +226,7 @@ async function calculate() {
 
   try {
     // Alpha Vantage: TIME_SERIES_DAILY_ADJUSTED (compact = last 100 days, full = up to 20 years)
-    const url = `${AV_BASE}?function=TIME_SERIES_DAILY_ADJUSTED` +
+    const url = `${AV_BASE}?function=TIME_SERIES_DAILY` +
       `&symbol=${encodeURIComponent(selectedStock.symbol)}` +
       `&outputsize=full&apikey=${apiKey}`;
 
@@ -247,7 +247,7 @@ async function calculate() {
 
     // Build sorted array of {date, close}
     const prices = Object.entries(series)
-      .map(([date, v]) => ({ date, close: parseFloat(v['5. adjusted close'] || v['4. close']) }))
+      .map(([date, v]) => ({ date, close: parseFloat(v['4. close']) }))
       .filter(p => !isNaN(p.close))
       .sort((a, b) => a.date.localeCompare(b.date));
 
