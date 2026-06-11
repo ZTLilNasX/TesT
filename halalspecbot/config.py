@@ -238,3 +238,60 @@ REPORT_DISCLAIMER = (
 )
 
 NO_NEWS_NOTE = "No verified live news catalyst included in MVP."
+
+# ---------------------------------------------------------------------------
+# Discovery universe — a broad mixed list of US tickers the market scanner
+# searches for high-momentum halal candidates. This is a starting universe,
+# not advice; every ticker still passes the strict Shariah screen, and known
+# haram names (banks, casinos, etc.) are intentionally included to demonstrate
+# that the screen excludes them. Users can paste their own list in the app.
+# ---------------------------------------------------------------------------
+
+DISCOVERY_UNIVERSE = [
+    # Mega-cap tech & communication
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NFLX", "ADBE", "CRM", "ORCL",
+    "CSCO", "IBM", "QCOM", "TXN", "INTC", "AMD", "NVDA", "AVGO", "MU", "ASML",
+    "AMAT", "LRCX", "KLAC", "MRVL", "ON", "SWKS", "TER", "ENPH", "FSLR",
+    # Software / growth / momentum
+    "NOW", "SNOW", "PLTR", "DDOG", "NET", "CRWD", "ZS", "PANW", "FTNT", "S",
+    "MDB", "TEAM", "SHOP", "SQ", "PYPL", "UBER", "ABNB", "DASH", "RBLX", "U",
+    "TTD", "ROKU", "PINS", "SNAP", "SPOT", "TWLO", "OKTA", "DOCU", "ZM", "HUBS",
+    "DELL", "HPQ", "WDC", "STX", "ANET", "SMCI", "ARM",
+    # Semiconductors / hardware momentum
+    "WOLF", "INDI", "AEHR", "NVTS", "QUBT", "RGTI", "IONQ", "LAES",
+    # EV / clean energy / battery (volatile)
+    "TSLA", "RIVN", "LCID", "NIO", "XPEV", "LI", "CHPT", "PLUG", "BLNK",
+    "RUN", "SEDG", "NEE", "BE", "QS", "FCEL",
+    # Healthcare / biotech (some explosive small caps)
+    "JNJ", "PFE", "MRK", "ABBV", "LLY", "UNH", "TMO", "DHR", "ABT", "AMGN",
+    "GILD", "REGN", "VRTX", "MRNA", "BNTX", "ISRG", "DXCM", "ALNY", "SRPT",
+    "CRSP", "NTLA", "BEAM", "VKTX", "RXRX", "TEM",
+    # Industrials / infrastructure / defense (defense → scholar review)
+    "GE", "HON", "CAT", "DE", "BA", "LMT", "RTX", "NOC", "GD", "EMR", "ETN",
+    "PH", "ROK", "URI", "PWR", "FAST", "GEV", "VRT",
+    # Energy
+    "XOM", "CVX", "COP", "SLB", "EOG", "OXY", "DVN", "MPC", "PSX", "FANG",
+    "LNG", "CEG", "SMR", "OKLO",
+    # Consumer / retail
+    "WMT", "COST", "HD", "LOW", "NKE", "MCD", "SBUX", "TGT", "LULU", "CMG",
+    "PG", "KO", "PEP", "DIS", "ELF", "DECK", "CAVA", "CELH",
+    # Materials / mining (commodity momentum)
+    "FCX", "NEM", "ALB", "MP", "CLF", "X", "AA", "SCCO",
+    # Financials / banks (expected NON-COMPLIANT — proves the screen works)
+    "JPM", "BAC", "WFC", "GS", "MS", "C", "V", "MA", "AXP", "SCHW",
+    # Misc high-volatility / meme / momentum names
+    "GME", "AMC", "COIN", "HOOD", "SOFI", "AFRM", "DKNG", "CVNA", "UPST",
+    "MARA", "RIOT", "CLSK", "HUT", "BTBT",
+]
+
+# Discovery scan tuning
+DISCOVERY_DEFAULT_TOP_N = 20          # deep-analyze this many top momentum names
+DISCOVERY_PRICE_PERIOD = "6mo"        # history window for the fast momentum pass
+DISCOVERY_DOWNLOAD_CHUNK = 50         # tickers per batched yfinance download
+
+DISCOVERY_DISCLAIMER = (
+    "Discovery finds stocks with high-momentum / breakout characteristics — it does "
+    "NOT predict that any stock will rise 100% or 1000%. No tool can. Most fast movers "
+    "are extremely risky and can lose most of their value. Treat every result as a "
+    "starting point for your own research and scholar review, never as a signal to buy."
+)

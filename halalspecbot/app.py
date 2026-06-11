@@ -20,6 +20,7 @@ from halalspecbot.alerts import alert_classification_change, send_alert
 from halalspecbot.models import AnalysisResult
 from halalspecbot.pipeline import run_full_analysis
 from halalspecbot.scanner import run_watchlist_scan
+from halalspecbot.discovery import discover_candidates
 from halalspecbot.utils import (
     classification_color,
     classification_emoji,
@@ -43,6 +44,14 @@ if "last_scan" not in st.session_state:
     st.session_state["last_scan"] = None
 if "scan_results" not in st.session_state:
     st.session_state["scan_results"] = []
+if "discovery_hits" not in st.session_state:
+    st.session_state["discovery_hits"] = []
+if "discovery_results" not in st.session_state:
+    st.session_state["discovery_results"] = []
+if "last_discovery" not in st.session_state:
+    st.session_state["last_discovery"] = None
+if "discovery_seen_buys" not in st.session_state:
+    st.session_state["discovery_seen_buys"] = set()
 
 database.init_db()
 
@@ -86,26 +95,57 @@ with st.sidebar:
         st.caption(f"Last scan: {st.session_state['last_scan']}")
 
     st.divider()
+    st.header("🚀 Market Discovery")
+    st.caption(
+        "Scans a broad universe for high-momentum halal candidates. "
+        "Momentum is not a prediction — fast movers are high risk."
+    )
+    use_custom_universe = st.checkbox("Use my own ticker list", value=False)
+    custom_universe = ""
+    if use_custom_universe:
+        custom_universe = st.text_area(
+            "Universe tickers", placeholder="AAPL, NVDA, PLTR, …", height=80
+        )
+    top_n = st.slider("Deep-analyze top N movers", 5, 40,
+                      config.DISCOVERY_DEFAULT_TOP_N, step=5)
+    auto_discover = st.selectbox(
+        "Auto-discovery interval",
+        ["Manual only", "Every 15 min", "Every 30 min", "Every 60 min"],
+        key="auto_discover_select",
+    )
+    discover_now = st.button("🔭 Scan the Market Now", use_container_width=True)
+    if st.session_state["last_discovery"]:
+        st.caption(f"Last discovery: {st.session_state['last_discovery']}")
+
+    st.divider()
     if st.session_state["alert_feed"]:
         st.header("Alerts")
         for alert in st.session_state["alert_feed"][:10]:
             st.info(f"{alert['time']} — {alert['message']}")
 
-# Auto-refresh timer for the scanner
+# Auto-refresh timers for the scanner and the discovery scan
 _INTERVALS = {"Every 15 min": 15 * 60, "Every 30 min": 30 * 60, "Every 60 min": 60 * 60}
-if auto_scan in _INTERVALS:
+_autorefresh = None
+if auto_scan in _INTERVALS or auto_discover in _INTERVALS:
     try:
         from streamlit_autorefresh import st_autorefresh
 
-        st_autorefresh(interval=_INTERVALS[auto_scan] * 1000, key="auto_scan_timer")
-        last = st.session_state.get("last_scan_epoch", 0)
-        if time.time() - last >= _INTERVALS[auto_scan] - 30:
-            scan_now = True
+        _autorefresh = st_autorefresh
     except ImportError:
         st.sidebar.caption(
             "Install `streamlit-autorefresh` for automatic scanning; "
-            "use Scan Now meanwhile."
+            "use the manual buttons meanwhile."
         )
+
+if _autorefresh and auto_scan in _INTERVALS:
+    _autorefresh(interval=_INTERVALS[auto_scan] * 1000, key="auto_scan_timer")
+    if time.time() - st.session_state.get("last_scan_epoch", 0) >= _INTERVALS[auto_scan] - 30:
+        scan_now = True
+
+if _autorefresh and auto_discover in _INTERVALS:
+    _autorefresh(interval=_INTERVALS[auto_discover] * 1000, key="auto_discover_timer")
+    if time.time() - st.session_state.get("last_discovery_epoch", 0) >= _INTERVALS[auto_discover] - 30:
+        discover_now = True
 
 # ---------------------------------------------------------------------------
 # Run analysis on demand
@@ -137,6 +177,36 @@ if scan_now:
         alert_classification_change(change["ticker"], change["old"], change["new"])
     for r in results:
         st.session_state["analysis_results"][r.ticker] = r
+
+# Run market discovery on demand / timer
+if discover_now:
+    universe = None
+    if use_custom_universe:
+        parsed = parse_tickers(custom_universe)
+        universe = parsed or None
+    progress = st.progress(0.0, text="Scanning the market…")
+
+    def _cb(done, total, ticker):
+        progress.progress(done / total, text=f"Analyzing {ticker} ({done}/{total})…")
+
+    with st.spinner("Ranking momentum across the universe…"):
+        hits, results = discover_candidates(
+            universe=universe, top_n=top_n, catalyst_notes=catalyst_notes, progress_cb=_cb
+        )
+    progress.empty()
+    st.session_state["discovery_hits"] = hits
+    st.session_state["discovery_results"] = results
+    st.session_state["last_discovery"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state["last_discovery_epoch"] = time.time()
+    for r in results:
+        st.session_state["analysis_results"][r.ticker] = r
+    # Alert only on newly-found halal speculative buys.
+    seen = st.session_state["discovery_seen_buys"]
+    for r in results:
+        if r.final_classification == config.CLASS_HALAL_SPECULATIVE_BUY and r.ticker not in seen:
+            seen.add(r.ticker)
+            send_alert(f"🚀 Discovery found a HALAL SPECULATIVE BUY: {r.ticker} "
+                       f"(score {r.final_score:.0f})")
 
 # ---------------------------------------------------------------------------
 # Rendering helpers
@@ -372,7 +442,7 @@ def render_result(result: AnalysisResult) -> None:
 # Main layout
 # ---------------------------------------------------------------------------
 
-main_tabs = st.tabs(["📊 Analysis", "🔍 Scanner", "⭐ Watchlist",
+main_tabs = st.tabs(["📊 Analysis", "🚀 Discovery", "🔍 Scanner", "⭐ Watchlist",
                      "🚫 Excluded Stocks", "🟣 Requires Scholar Review"])
 
 with main_tabs[0]:
@@ -388,6 +458,70 @@ with main_tabs[0]:
             render_result(result)
 
 with main_tabs[1]:
+    st.subheader("🚀 Market Discovery — High-Momentum Halal Candidates")
+    st.warning(f"⚠️ {config.DISCOVERY_DISCLAIMER}")
+    st.caption(
+        "Two stages: a fast momentum ranking across the whole universe, then a full "
+        "Shariah + opportunity analysis on the top movers. Halal candidates are listed "
+        "first; excluded names appear at the bottom so you can see the screen working."
+    )
+
+    hits = st.session_state["discovery_hits"]
+    disc_results = st.session_state["discovery_results"]
+
+    if not hits and not disc_results:
+        st.info(
+            "No discovery scan yet. Set options in the sidebar and click "
+            "**🔭 Scan the Market Now** (or enable auto-discovery)."
+        )
+    else:
+        if disc_results:
+            st.markdown("#### Deep-Analyzed Candidates (ranked)")
+            drows = []
+            for i, r in enumerate(disc_results):
+                hit = next((h for h in hits if h.ticker == r.ticker), None)
+                drows.append(
+                    {
+                        "Rank": i + 1,
+                        "Ticker": r.ticker,
+                        "Classification": f"{classification_emoji(r.final_classification)} "
+                                          f"{r.final_classification}",
+                        "Final Score": round(r.final_score),
+                        "1M Return": format_percentage(hit.ret_1m) if hit else "N/A",
+                        "3M Return": format_percentage(hit.ret_3m) if hit else "N/A",
+                        "Momentum": round(hit.momentum_score) if hit else "N/A",
+                        "Risk": round(r.risk_score),
+                        "Confidence": round(r.confidence_score),
+                    }
+                )
+            st.dataframe(pd.DataFrame(drows), use_container_width=True, hide_index=True)
+
+            buys = [r for r in disc_results
+                    if r.final_classification == config.CLASS_HALAL_SPECULATIVE_BUY]
+            if buys:
+                names = ", ".join(f"{b.ticker} ({b.final_score:.0f})" for b in buys)
+                st.success(f"🟢 Halal speculative buy candidates found: {names}. "
+                           "Open the Analysis tab for full reports before acting.")
+            else:
+                st.info("No HALAL SPECULATIVE BUY candidates in this scan — "
+                        "the strongest names may be on the watchlist or flagged too risky.")
+
+        with st.expander(f"Full momentum ranking ({len(hits)} tickers scanned)"):
+            mrows = [
+                {
+                    "Ticker": h.ticker,
+                    "Momentum": round(h.momentum_score),
+                    "Price": format_price(h.last_price),
+                    "1M Return": format_percentage(h.ret_1m),
+                    "3M Return": format_percentage(h.ret_3m),
+                    "Volume Surge": f"{h.volume_surge:.2f}x" if h.volume_surge else "N/A",
+                    "Near High": format_percentage(h.near_high) if h.near_high else "N/A",
+                }
+                for h in hits
+            ]
+            st.dataframe(pd.DataFrame(mrows), use_container_width=True, hide_index=True)
+
+with main_tabs[2]:
     st.subheader("Continuous Scanner — Best Halal Setups Right Now")
     st.caption(
         "Re-runs the full analysis on every tracked ticker and ranks them by "
@@ -421,16 +555,16 @@ with main_tabs[1]:
                 f"(score {top.final_score:.0f}). Review its full report before acting."
             )
 
-with main_tabs[2]:
+with main_tabs[3]:
     st.subheader("Watchlist (Halal Tickers Being Tracked)")
     watchlist_table(watchlist_manager.get_active_watchlist(), key="active")
 
-with main_tabs[3]:
+with main_tabs[4]:
     st.subheader("Excluded Stocks (Non-Compliant)")
     st.caption("These businesses failed the Shariah screen. Profit never overrides compliance.")
     watchlist_table(watchlist_manager.get_excluded(), key="excluded")
 
-with main_tabs[4]:
+with main_tabs[5]:
     st.subheader("Requires Scholar Review")
     st.caption(
         "Business activity or financial data was unclear. Do not assume permissibility — "
